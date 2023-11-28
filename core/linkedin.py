@@ -53,23 +53,26 @@ class LinkedIn:
 
     def scrape_jobs(self, location):
         url = f"{self.LINKEDIN_URL}jobs/search"
-        params = {
-            "keywords": "",
-            "location": location,
-            "geoId": "",
-            "trk": "public_jobs_jobs-search-bar_search-submit",
-            "position": 1,
-            "pageNum": 0,
-        }
-        try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, "html.parser")
-            job_cards = soup.find_all("div", class_="base-search-card__info")
-            return self._extract_job_data(job_cards)
-        except requests.exceptions.HTTPError as err:
-            print(f"HTTP error occurred: {err}")
-            return []
+        job_data_list = []
+        for page_num in range(8):
+            params = {
+                "keywords": "",
+                "location": location,
+                "geoId": "",
+                "trk": "public_jobs_jobs-search-bar_search-submit",
+                "position": 1,
+                "pageNum": page_num,
+            }
+            try:
+                response = requests.get(url, params=params)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, "html.parser")
+                job_cards = soup.find_all("div", class_="base-search-card__info")
+                job_data_list.extend(self._extract_job_data(job_cards))
+            except Exception as e:
+                print(str(e))
+                return []
+        return job_data_list
 
     def _extract_job_data(self, job_cards):
         job_list = []
