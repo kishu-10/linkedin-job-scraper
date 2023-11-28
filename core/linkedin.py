@@ -2,6 +2,9 @@ from decouple import config
 import requests
 from fastapi.responses import RedirectResponse
 from bs4 import BeautifulSoup
+import pandas as pd
+import asyncio
+import aiohttp
 
 
 class LinkedIn:
@@ -51,28 +54,39 @@ class LinkedIn:
         except Exception as e:
             raise Exception("Failed to get access token")
 
-    def scrape_jobs(self, location):
+    async def async_scrape_jobs(self, location):
         url = f"{self.LINKEDIN_URL}jobs/search"
         job_data_list = []
-        for page_num in range(8):
-            params = {
-                "keywords": "",
-                "location": location,
-                "geoId": "",
-                "trk": "public_jobs_jobs-search-bar_search-submit",
-                "position": 1,
-                "pageNum": page_num,
-            }
-            try:
-                response = requests.get(url, params=params)
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                self._async_extract_job_data(session, url, location, page_num)
+                for page_num in range(8)
+            ]
+            job_data_list = await asyncio.gather(*tasks)
+
+        job_data_df = pd.concat(job_data_list)
+        return job_data_df
+
+    async def _async_extract_job_data(self, session, url, location, page_num):
+        params = {
+            "keywords": "",
+            "location": location,
+            "geoId": "",
+            "trk": "public_jobs_jobs-search-bar_search-submit",
+            "position": 1,
+            "pageNum": page_num,
+        }
+
+        try:
+            async with session.get(url, params=params) as response:
                 response.raise_for_status()
-                soup = BeautifulSoup(response.content, "html.parser")
+                soup = BeautifulSoup(await response.text(), "html.parser")
                 job_cards = soup.find_all("div", class_="base-search-card__info")
-                job_data_list.extend(self._extract_job_data(job_cards))
-            except Exception as e:
-                print(str(e))
-                return []
-        return job_data_list
+                return self._extract_job_data(job_cards)
+
+        except Exception as e:
+            print(str(e))
+            return pd.DataFrame()
 
     def _extract_job_data(self, job_cards):
         job_list = []
@@ -92,4 +106,4 @@ class LinkedIn:
                 published_date.text.strip() if published_date else None
             )
             job_list.append(job_dict)
-        return job_list
+        return pd.DataFrame(job_list)
