@@ -29,3 +29,8 @@ async def linkedin_jobs(request: Request):
     linkedin = LinkedIn()
     access_token = request.session.get("access_token")
     return linkedin.get_jobs(access_token)
+
+@api.get("/linkedin/scrape-jobs")
+async def linkedin_jobs():
+    linkedin = LinkedIn()
+    return linkedin.scrape_jobs()
