@@ -59,22 +59,23 @@ class LinkedIn:
         job_data_list = []
         async with aiohttp.ClientSession() as session:
             tasks = [
-                self._async_extract_job_data(session, url, location, page_num)
-                for page_num in range(8)
+                self._async_extract_job_data(session, url, location, start)
+                for start in range(0, 200, 25)
             ]
             job_data_list = await asyncio.gather(*tasks)
 
         job_data_df = pd.concat(job_data_list)
         return job_data_df
 
-    async def _async_extract_job_data(self, session, url, location, page_num):
+    async def _async_extract_job_data(self, session, url, location, start):
         params = {
             "keywords": "",
             "location": location,
             "geoId": "",
             "trk": "public_jobs_jobs-search-bar_search-submit",
             "position": 1,
-            "pageNum": page_num,
+            "pageNum": 0,
+            "start": start,
         }
 
         try:
