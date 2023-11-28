@@ -3,6 +3,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from core.helpers import save_data_to_csv
 from core.utils import Response
 from .linkedin import LinkedIn
+from fastapi.encoders import jsonable_encoder
 
 api_app = FastAPI()
 
@@ -46,9 +47,9 @@ async def linkedin_jobs(request: Request, linkedin: LinkedIn = Depends()):
 @api_app.get("/linkedin/get-jobs")
 async def linkedin_scrape_jobs(location: str = "Nepal", linkedin: LinkedIn = Depends()):
     try:
-        jobs = linkedin.scrape_jobs(location)
+        jobs = await linkedin.async_scrape_jobs(location)
         save_data_to_csv(jobs)
-        return Response(status.HTTP_200_OK, "Job data retrieved successfully", jobs)
+        return Response(status.HTTP_200_OK, "Job data retrieved successfully", {})
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
