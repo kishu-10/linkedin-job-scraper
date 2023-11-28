@@ -5,45 +5,55 @@ from bs4 import BeautifulSoup
 
 
 class LinkedIn:
-    client_id = config("CLIENT_ID")
-    client_secret = config("CLIENT_SECRET")
-    redirect_uri = config("REDIRECT_URI")
-    grant_type = "authorization_code"
-    linkedin_url = config("LINKEDIN_URL")
+    LINKEDIN_URL = config("LINKEDIN_URL")
+    CLIENT_ID = config("CLIENT_ID")
+    CLIENT_SECRET = config("CLIENT_SECRET")
+    REDIRECT_URI = config("REDIRECT_URI")
+    SCOPE = "email"
+    GRANT_TYPE = "authorization_code"
+
+    @property
+    def authorization_url(self):
+        return f"{self.LINKEDIN_URL}oauth/v2/authorization"
+
+    @property
+    def access_token_url(self):
+        return f"{self.LINKEDIN_URL}oauth/v2/accessToken"
 
     def authorization(self):
-        url = "https://www.linkedin.com/oauth/v2/authorization"
-        _params = {
+        params = {
             "response_type": "code",
-            "client_id": self.client_id,
-            "redirect_uri": self.redirect_uri,
-            "scope": "email",
+            "client_id": self.CLIENT_ID,
+            "redirect_uri": self.REDIRECT_URI,
+            "scope": self.SCOPE,
         }
-        response = requests.get(url, params=_params)
+        response = requests.get(self.authorization_url, params=params)
         return RedirectResponse(response.url)
 
     def get_access_token(self, code):
-        url = "https://www.linkedin.com/oauth/v2/accessToken"
-        content_type = {"Content-Type": "application/x-www-form-urlencoded"}
-        body = {
-            "grant_type": self.grant_type,
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
+        data = {
+            "grant_type": self.GRANT_TYPE,
+            "client_id": self.CLIENT_ID,
+            "client_secret": self.CLIENT_SECRET,
             "code": code,
-            "redirect_uri": self.redirect_uri,
+            "redirect_uri": self.REDIRECT_URI,
         }
-        response = requests.post(url, data=body, headers=content_type)
-        return response.json()["access_token"]
+        response = requests.post(self.access_token_url, data=data)
+        json_response = response.json()
+        return json_response.get("access_token")
 
     def get_jobs(self, access_token):
         url = "https://api.linkedin.com/v2/simpleJobPostings"
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.post(url, headers=headers)
-        return response.json()["message"]
+        try:
+            response = requests.post(url, headers=headers)
+            return response.json()
+        except Exception as e:
+            raise Exception("Failed to get access token")
 
-    def scrape_jobs(self, location="Nepal"):
-        _url = f"{self.linkedin_url}jobs/search"
-        _params = {
+    def scrape_jobs(self, location):
+        url = f"{self.LINKEDIN_URL}jobs/search"
+        params = {
             "keywords": "",
             "location": location,
             "geoId": "",
@@ -51,14 +61,20 @@ class LinkedIn:
             "position": 1,
             "pageNum": 0,
         }
-        response = requests.get(_url, params=_params)
-        soup = BeautifulSoup(response.content, "html.parser")
-        job_cards = soup.find_all("div", class_="base-search-card__info")
-        job_list = []
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.content, "html.parser")
+            job_cards = soup.find_all("div", class_="base-search-card__info")
+            return self._extract_job_data(job_cards)
+        except requests.exceptions.HTTPError as err:
+            print(f"HTTP error occurred: {err}")
+            return []
 
+    def _extract_job_data(self, job_cards):
+        job_list = []
         for job_card in job_cards:
             job_dict = {}
-
             title = job_card.find("h3", class_="base-search-card__title")
             job_dict["title"] = title.text.strip() if title else None
 
@@ -68,14 +84,9 @@ class LinkedIn:
             job_location = job_card.find("span", class_="job-search-card__location")
             job_dict["location"] = job_location.text.strip() if job_location else None
 
-            benefits = job_card.find("span", class_="result-benefits__text")
-            job_dict["benefits"] = benefits.text.strip() if benefits else None
-
             published_date = job_card.find("time", class_="job-search-card__listdate")
             job_dict["published_date"] = (
                 published_date.text.strip() if published_date else None
             )
-
             job_list.append(job_dict)
-
         return job_list

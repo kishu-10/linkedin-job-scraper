@@ -1,36 +1,55 @@
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+
+from core.helpers import save_data_to_csv
+from core.utils import Response
 from .linkedin import LinkedIn
 
-api = FastAPI()
+api_app = FastAPI()
 
 
-@api.get("/")
+@api_app.get("/")
 def index():
     return {"message": "This is v1 of this application."}
 
 
-@api.get("/linkedin/authorization")
-async def linkedin_authorization():
-    linkedin = LinkedIn()
+@api_app.get("/linkedin/authorization")
+async def linkedin_authorization(linkedin: LinkedIn = Depends()):
     return linkedin.authorization()
 
 
-@api.get("/linkedin/access-token")
-async def linkedin_access_token(request: Request):
-    _code = request.query_params.get("code")
-    linkedin = LinkedIn()
-    access_token = linkedin.get_access_token(_code)
-    request.session["access_token"] = access_token
-    return access_token
+@api_app.get("/linkedin/access-token")
+async def linkedin_access_token(
+    request: Request, code: str, linkedin: LinkedIn = Depends()
+):
+    try:
+        access_token = linkedin.get_access_token(code)
+        request.session["access_token"] = access_token
+        return access_token
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
 
-@api.get("/linkedin/jobs")
-async def linkedin_jobs(request: Request):
-    linkedin = LinkedIn()
-    access_token = request.session.get("access_token")
-    return linkedin.get_jobs(access_token)
+@api_app.get("/linkedin/jobs")
+async def linkedin_jobs(request: Request, linkedin: LinkedIn = Depends()):
+    try:
+        access_token = request.session.get("access_token")
+        jobs = linkedin.get_jobs(access_token)
+        return jobs
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
-@api.get("/linkedin/scrape-jobs")
-async def linkedin_jobs():
-    linkedin = LinkedIn()
-    return linkedin.scrape_jobs()
+
+@api_app.get("/linkedin/get-jobs")
+async def linkedin_scrape_jobs(location: str = "Nepal", linkedin: LinkedIn = Depends()):
+    try:
+        jobs = linkedin.scrape_jobs(location)
+        save_data_to_csv(jobs)
+        return Response(status.HTTP_200_OK, "Job data retrieved successfully", jobs)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
