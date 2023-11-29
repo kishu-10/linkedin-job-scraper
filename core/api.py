@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 
 from core.helpers import save_data_to_csv
 from core.utils import Response
@@ -45,10 +45,14 @@ async def linkedin_jobs(request: Request, linkedin: LinkedIn = Depends()):
 
 
 @api_app.get("/linkedin/get-jobs")
-async def linkedin_scrape_jobs(location: str = "Nepal", linkedin: LinkedIn = Depends()):
+async def linkedin_scrape_jobs(
+    background_tasks: BackgroundTasks,
+    location: str = "Nepal",
+    linkedin: LinkedIn = Depends(),
+):
     try:
         jobs = await linkedin.async_scrape_jobs(location)
-        save_data_to_csv(jobs)
+        background_tasks.add_task(save_data_to_csv, jobs)
         return Response(status.HTTP_200_OK, "Job data retrieved successfully", {})
     except Exception as e:
         raise HTTPException(
@@ -57,12 +61,16 @@ async def linkedin_scrape_jobs(location: str = "Nepal", linkedin: LinkedIn = Dep
 
 
 @api_app.get("/linkedin/scrape-jobs")
-async def linkedin_jobs(linkedin: LinkedInJobScraper = Depends()):
+async def linkedin_jobs(
+    background_tasks: BackgroundTasks, linkedin: LinkedInJobScraper = Depends()
+):
     try:
         jobs = linkedin.get_jobs()
-        save_data_to_csv(jobs)
+        background_tasks.add_task(save_data_to_csv, jobs)
+        linkedin.close_driver()  
         return Response(status.HTTP_200_OK, "Job data retrieved successfully", {})
     except Exception as e:
+        linkedin.close_driver()  
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
