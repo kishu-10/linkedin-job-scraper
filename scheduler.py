@@ -4,11 +4,22 @@ from core.helpers import save_data_to_csv
 from core.linkedin import LinkedIn
 from airflow.operators.python import PythonOperator
 
+from scrape.jobs import LinkedInJobScraper
+
 
 def schedule_job_task():
     try:
         linkedin = LinkedIn()
         jobs = linkedin.scrape_jobs("Nepal")
+        save_data_to_csv(jobs)
+    except Exception as e:
+        raise ValueError(str(e))
+
+
+def schedule_job_scrape_task():
+    try:
+        linkedin = LinkedInJobScraper()
+        jobs = linkedin.get_jobs()
         save_data_to_csv(jobs)
     except Exception as e:
         raise ValueError(str(e))
@@ -30,7 +41,7 @@ dag = DAG(
 
 task = PythonOperator(
     task_id="my_task",
-    python_callable=schedule_job_task,
+    python_callable=schedule_job_scrape_task,
     dag=dag,
 )
 
