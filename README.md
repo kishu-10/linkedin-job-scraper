@@ -28,7 +28,6 @@ Start the FastAPI server:
 
 ```sh
 uvicorn main:app --reload
-http://localhost:8000/api/linkedin/scrape-jobs
 ```
 
 To scrape jobs from LinkedIn and store in csv file:
