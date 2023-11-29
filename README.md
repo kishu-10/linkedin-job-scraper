@@ -31,7 +31,7 @@ uvicorn main:app --reload
 http://localhost:8000/api/linkedin/scrape-jobs
 ```
 
-To scrape jobs from Linkedi¥In and store in csv file:
+To scrape jobs from LinkedIn and store in csv file:
 
 ```sh
 http://localhost:8000/api/linkedin/scrape-jobs
